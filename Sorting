@@ -1,0 +1,81 @@
+Sorter_1_belt := Sorter.Belt[1];
+Sorter_2_belt := Sorter.Belt[2];
+Sorter_3_belt := Sorter.Belt[3];
+Sorter_1_turn := Sorter.Turn[1];
+Sorter_2_turn := Sorter.Turn[2];
+Sorter_3_turn := Sorter.Turn[3];
+
+(*Borda de Subida*)
+R_At_exit(CLK := At_exit);	
+	
+(*Temporizadores*)
+Timer[1](IN := Passo = 1, PT := T#300MS);
+Timer[2](IN := Timer[1].Q, PT := T#200MS);
+
+CASE Passo OF
+	
+	0:
+		IF NOT Emergency_Mode AND Enable THEN
+			IF Vision_sensor = 0 THEN
+				Entry_conveyor := TRUE;
+			ELSE
+				Entry_conveyor := FALSE;
+				Passo := 1;
+			END_IF
+		END_IF
+	
+	1:
+		IF NOT Emergency_Mode AND Enable THEN
+			IF Vision_sensor = i OR Vision_sensor = i+3 THEN
+				IF Timer[1].Q THEN
+					Sorter.Belt[i] := TRUE;
+					Sorter.Turn[i] := TRUE;
+				END_IF
+				IF Timer[2].Q THEN
+					Entry_conveyor := TRUE;
+					Exit_conveyor  := TRUE;
+					Passo := 2;
+				END_IF
+			END_IF
+		END_IF
+		
+	2:
+		IF NOT Emergency_Mode AND Enable THEN
+			IF Vision_sensor = 0 THEN
+				Entry_conveyor := FALSE;
+				Passo := 3;
+			END_IF
+		END_IF
+	
+	3:
+		IF NOT Emergency_Mode AND Enable THEN
+			IF R_At_exit.Q THEN
+				Sorter.Belt[i] := FALSE;
+				Sorter.Turn[i] := FALSE;
+				Exit_conveyor  := FALSE;
+				Passo := 0;
+				i     := 0;
+				IF Stopping OR Manual THEN
+					Enable := FALSE; 
+				END_IF
+			END_IF
+		END_IF
+END_CASE
+
+(*Índice*)
+IF NOT Emergency_Mode AND Enable AND Passo = 1 THEN
+	IF Vision_sensor = 1 OR Vision_sensor = 4 THEN
+		i := 1;
+	END_IF
+	IF Vision_sensor = 2 OR Vision_sensor = 5 THEN
+		i := 2;
+	END_IF
+	IF Vision_sensor = 3 OR Vision_sensor = 6 THEN
+		i := 3;
+	END_IF
+END_IF
+
+(*Contadores*)
+Contador[1](CU := NOT At_exit AND i= 1 AND Passo = 3, RESET := Reset, CV => Counter_1);
+Contador[2](CU := NOT At_exit AND i= 2 AND Passo = 3, RESET := Reset, CV => Counter_2);
+Contador[3](CU := NOT At_exit AND i= 3 AND Passo = 3, RESET := Reset, CV => Counter_3);
