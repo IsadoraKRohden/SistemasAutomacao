@@ -1,0 +1,42 @@
+PROGRAM Abastecimento_e_Contador
+VAR
+	Base_at_place_F_TRIG, Lid_at_place_F_TRIG, Part_leaving_F_TRIG: F_TRIG;
+	Contador: CTU;
+	Lid_at_place: BOOL;
+END_VAR
+
+(*Bordas de Descida*)
+Lid_at_place_F_TRIG(CLK := Lid_at_place);
+Base_at_place_F_TRIG(CLK := Base_at_place);
+Part_leaving_F_TRIG(CLK := Part_leaving);
+
+(*Contador*)
+Contador(CU := Part_leaving_F_TRIG.Q, Reset := Reset OR NOT Emergency_stop);
+Counter := Contador.CV;
+
+(*Abastecimento de Tampas*)
+IF Emergency_stop AND Enable AND Tag[1] AND NOT Clamp_lid THEN
+	Lids_conveyor := TRUE;
+END_IF
+IF Emergency_stop AND Lid_at_place_F_TRIG.Q THEN
+	Clamp_lid     := TRUE;
+	Lids_conveyor := FALSE;
+	Tag[1]        := FALSE;
+END_IF
+
+(*Abastecimento de Bases*)
+IF Emergency_stop AND Enable AND Tag[2] AND NOT Clamp_base THEN
+	Bases_conveyor := TRUE;
+	Bases_emitter := TRUE;
+END_IF
+IF Emergency_stop AND Base_at_place_F_TRIG.Q  THEN
+	Clamp_base     := TRUE;
+	Bases_conveyor := FALSE;
+	Bases_emitter  := FALSE;
+	Tag[2]         := FALSE;
+END_IF
+IF Emergency_stop AND Part_leaving_F_TRIG.Q THEN
+	Tag[2] := TRUE;
+	Bases_conveyor := FALSE;
+	Pos_raise_bases := FALSE;
+END_IF
