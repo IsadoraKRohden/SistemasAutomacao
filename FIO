@@ -1,0 +1,6 @@
+VAR_GLOBAL
+      	Enable AT %MX0.0:    BOOL;
+		Stopping AT %MX0.1:    BOOL;
+		Step:    INT;
+		Clock:					Blink;
+END_VAR
