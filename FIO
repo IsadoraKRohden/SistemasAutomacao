@@ -1,6 +1,44 @@
 VAR_GLOBAL
-      	Enable AT %MX0.0:    BOOL;
-		Stopping AT %MX0.1:    BOOL;
-		Step:    INT;
-		Clock:					Blink;
+	Enable AT %MX0.0:   BOOL;
+	Stopping AT %MX0.1: BOOL;
+	Step:				INT;
+	Clock:				Blink;
+	Tag: ARRAY[1..2] OF BOOL;
+	
+(*ENTRADAS DIGITAIS*)
+	Moving_X AT %IX0.0:   BOOL;
+	Moving_Z AT %IX0.1:   BOOL;
+	Item_detected AT %IX0.2:   BOOL;
+	Lid_at_place AT %IX0.3:   BOOL;
+	Lid_clamped AT %IX0.4:   BOOL;
+	Pos_at_limit_lids AT %IX0.5:   BOOL;
+	Base_at_place AT %IX0.6:   BOOL;
+	Base_clamped AT %IX0.7:   BOOL;
+	Pos_at_limit_base AT %IX1.0:   BOOL;
+	Part_leaving AT %IX1.1:   BOOL;
+	Start AT %IX1.2:   BOOL;
+	Reset AT %IX1.3:   BOOL;
+	Stop AT %IX1.4:   BOOL;
+	Emergency_stop AT %IX1.5:   BOOL;
+	Auto AT %IX1.6:   BOOL;
+	Manual AT %IX1.7:   BOOL;
+	FIO_Running AT %IX2.0:   BOOL;
+	
+(*SAIDAS DIGITAIS*)
+	Move_X AT %QX0.0:   BOOL;
+	Move_Z AT %QX0.1:   BOOL;
+	Grab AT %QX0.2:   BOOL;
+	Lids_Conveyor AT %QX0.3:   BOOL;
+	Clamp_lid AT %QX0.4:   BOOL;
+	Pos_raise_lids AT %QX0.5:   BOOL;
+	Base_Conveyor AT %QX0.6:   BOOL;
+	Clamp_base AT %QX0.7:   BOOL;
+	Pos_raise_bases AT %QX1.0:   BOOL;
+	Start_light AT %QX1.1:   BOOL;
+	Reset_light AT %QX1.2:   BOOL;
+	Stop_light AT %QX1.3:   BOOL;
+	Bases_emitter AT %QX1.4:   BOOL;
+	
+(*SAIDA ANALOGICA*)
+	Counter AT %QW1:   WORD;
 END_VAR
