@@ -1,0 +1,43 @@
+(*PAINEL DE CONTROLE*)
+IF NOT Emergency_stop THEN
+	%QD0 :=0;
+	%MD0 :=0;
+	Step :=0;
+END_IF
+
+IF Emergency_stop THEN
+	IF Start THEN						//START
+		Enable := TRUE;
+		Stopping := FALSE;
+		Step := 0;
+		Tag[1] := TRUE;
+		Tag[2] := TRUE;
+	END_IF
+
+	IF NOT Stop THEN
+		Stopping := TRUE;
+	END_IF
+	
+	IF Reset THEN
+		Reset_light := TRUE;
+	ELSE
+		Reset_light := FALSE;
+	END_IF
+	
+	IF Enable THEN
+		Stop_light := FALSE;
+		Start_light := TRUE;
+	ELSE
+		Stop_light := TRUE;
+		Start_light := FALSE;
+	END_IF
+END_IF
+
+//TALVEZ TIRAR//
+Clock();
+IF Emergency_stop AND Enable AND Stopping THEN 
+	Clock.ENABLE := TRUE;
+	Stop_light := Clock.OUT;
+ELSIF NOT Stopping THEN
+	Clock.ENABLE := FALSE;
+END_IF
