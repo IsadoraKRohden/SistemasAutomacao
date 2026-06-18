@@ -1,3 +1,308 @@
 //Primeiro teste
 
-//Structured text
+PROGRAM Main_FSM
+VAR
+    // Estados da FSM
+    eState : (STOPPED, WAITING_PARTS, ASSEMBLY, INSPECTION, APPROVED, REJECTED, ALARM);
+    
+    // Sub-etapa da montagem
+    iAssemblyStep : INT := 0;
+    
+    // Timers
+    TON_AssemblyStep : TON;
+    TON_ApprovedExit : TON;
+    TON_RejectedExit : TON;
+    TON_InspectionTimeout : TON;
+    
+    // Auxiliares de borda
+    R_Start   : R_TRIG;
+    R_Stop    : R_TRIG;
+    R_Reset   : R_TRIG;
+    R_EndOfState : R_TRIG;   // Detecção de passagem do sensor óptico
+    
+    // Constantes de peso
+    WEIGHT_MIN : INT := 1200;   // g
+    WEIGHT_MAX : INT := 1600;   // g
+    
+    // Contador de rejeições consecutivas
+    ConsecutiveRejects : INT := 0;
+    
+    // Flags de inspeção
+    bProductAtInspection : BOOL;
+    bMetalDetected       : BOOL;
+    bWeightOK            : BOOL;
+END_VAR
+
+//--------------------------------------------------------------
+// Mapeamento de entradas (exemplos – ajuste conforme seu driver)
+//--------------------------------------------------------------
+// iBaseAtPlace, iLidAtPlace, iBaseClamped, iLidClamped,
+// iRobotHome, iRobotPick, iRobotPlace,
+// iCapacitiveSensor, iInductiveSensor, iWeightValue (INT),
+// iEndOfState, iApprovedExitSensor, iRejectedExitSensor,
+// iBtnStart, iBtnStop, iBtnReset
+//--------------------------------------------------------------
+// Mapeamento de saídas (exemplos)
+// oBaseConveyor, oLidConveyor, oBaseClamp, oLidClamp,
+// oGripperClose, oRobotMovePick, oRobotMovePlace, oRobotMoveHome,
+// oPivotArm, oGreenLight, oRedLight, oYellowLight, oAlarmLight
+//--------------------------------------------------------------
+
+// Detecção de borda dos botões
+R_Start(CLK := iBtnStart);
+R_Stop(CLK := iBtnStop);
+R_Reset(CLK := iBtnReset);
+
+// Sensor de fim de estado (óptico) – detecta passagem do produto
+R_EndOfState(CLK := iEndOfState);
+
+// Agrupamento de condições da inspeção
+bProductAtInspection := iCapacitiveSensor;
+bMetalDetected       := iInductiveSensor;
+bWeightOK            := (iWeightValue >= WEIGHT_MIN) AND (iWeightValue <= WEIGHT_MAX);
+
+//--------------------------------------------------------------
+// Máquina de Estados Principal
+//--------------------------------------------------------------
+CASE eState OF
+    //==========================================================
+    STOPPED:
+        // Desliga todos os atuadores
+        oBaseConveyor   := FALSE;
+        oLidConveyor    := FALSE;
+        oBaseClamp      := FALSE;
+        oLidClamp       := FALSE;
+        oGripperClose   := FALSE;
+        oRobotMovePick  := FALSE;
+        oRobotMovePlace := FALSE;
+        oRobotMoveHome  := FALSE;
+        oPivotArm       := FALSE;
+        oGreenLight     := FALSE;
+        oRedLight       := FALSE;
+        oYellowLight    := TRUE;   // Sistema parado
+        oAlarmLight     := FALSE;
+        
+        iAssemblyStep := 0;
+        ConsecutiveRejects := 0;    // Reset no contador ao parar totalmente
+        
+        // Transição para operação
+        IF R_Start.Q THEN
+            eState := WAITING_PARTS;
+        END_IF;
+    
+    //==========================================================
+    WAITING_PARTS:
+        // Liga esteiras para alimentar base e inserto
+        oBaseConveyor := TRUE;
+        oLidConveyor  := TRUE;
+        oGreenLight   := TRUE;   // Em operação
+        oYellowLight  := FALSE;
+        
+        // Garante grampos abertos e robô em home
+        oBaseClamp     := FALSE;
+        oLidClamp      := FALSE;
+        oRobotMoveHome := TRUE;  // Comando contínuo, robô em home o desativa se necessário
+        
+        // Quando ambos componentes estão presentes, avança
+        IF iBaseAtPlace AND iLidAtPlace THEN
+            oBaseConveyor    := FALSE;
+            oLidConveyor     := FALSE;
+            oRobotMoveHome   := FALSE;
+            eState           := ASSEMBLY;
+            iAssemblyStep    := 0;
+            TON_AssemblyStep(IN := FALSE); // Reset timer
+        END_IF;
+        
+        // Parada por botão STOP
+        IF R_Stop.Q THEN
+            eState := STOPPED;
+        END_IF;
+    
+    //==========================================================
+    ASSEMBLY:
+        // Sequência de passos da montagem
+        CASE iAssemblyStep OF
+            0:  // 1. Fixar base e inserto
+                oBaseClamp := TRUE;
+                oLidClamp  := TRUE;
+                TON_AssemblyStep(IN := TRUE, PT := T#1s);
+                IF TON_AssemblyStep.Q THEN
+                    TON_AssemblyStep(IN := FALSE);
+                    iAssemblyStep := 10;
+                END_IF;
+            
+            10: // 2. Mover robô para ponto de pick (pegar inserto)
+                oRobotMovePick := TRUE;
+                IF iRobotPick THEN
+                    oRobotMovePick := FALSE;
+                    iAssemblyStep := 20;
+                END_IF;
+            
+            20: // 3. Fechar garra
+                oGripperClose := TRUE;
+                TON_AssemblyStep(IN := TRUE, PT := T#500ms);
+                IF TON_AssemblyStep.Q THEN
+                    TON_AssemblyStep(IN := FALSE);
+                    iAssemblyStep := 30;
+                END_IF;
+            
+            30: // 4. Mover robô para ponto de place (sobre a base)
+                oRobotMovePlace := TRUE;
+                IF iRobotPlace THEN
+                    oRobotMovePlace := FALSE;
+                    iAssemblyStep := 40;
+                END_IF;
+            
+            40: // 5. Soltar inserto (abrir garra)
+                oGripperClose := FALSE;
+                TON_AssemblyStep(IN := TRUE, PT := T#500ms);
+                IF TON_AssemblyStep.Q THEN
+                    TON_AssemblyStep(IN := FALSE);
+                    iAssemblyStep := 50;
+                END_IF;
+            
+            50: // 6. Retornar robô ao home
+                oRobotMoveHome := TRUE;
+                IF iRobotHome THEN
+                    oRobotMoveHome := FALSE;
+                    iAssemblyStep := 60;
+                END_IF;
+            
+            60: // 7. Liberar grampos
+                oBaseClamp := FALSE;
+                oLidClamp  := FALSE;
+                TON_AssemblyStep(IN := TRUE, PT := T#500ms);
+                IF TON_AssemblyStep.Q THEN
+                    TON_AssemblyStep(IN := FALSE);
+                    iAssemblyStep := 70;
+                END_IF;
+            
+            70: // 8. Transportar produto para estação de inspeção
+                // (aciona esteira/transportador que leva ao sensor capacitivo)
+                // Exemplo: ativa um bit "oTransportToInspection" por tempo
+                // ou até que o sensor capacitivo acuse presença.
+                // Aqui, por simplicidade, temporizamos 2 segundos.
+                TON_AssemblyStep(IN := TRUE, PT := T#2s);
+                IF TON_AssemblyStep.Q THEN
+                    TON_AssemblyStep(IN := FALSE);
+                    eState := INSPECTION;
+                    iAssemblyStep := 0;
+                    // Reseta timeout da inspeção
+                    TON_InspectionTimeout(IN := FALSE);
+                END_IF;
+        END_CASE;
+        
+        // Parada de emergência/STOP durante montagem
+        IF R_Stop.Q THEN
+            eState := STOPPED;
+        END_IF;
+    
+    //==========================================================
+    INSPECTION:
+        // Aguarda produto chegar na inspeção (sensor capacitivo)
+        IF bProductAtInspection THEN
+            // Verifica critérios de qualidade
+            IF bMetalDetected AND bWeightOK THEN
+                eState := APPROVED;
+                // Produto aprovado → zera contador de rejeições
+                ConsecutiveRejects := 0;
+            ELSE
+                eState := REJECTED;
+                // Incrementa rejeições consecutivas
+                ConsecutiveRejects := ConsecutiveRejects + 1;
+            END_IF;
+            TON_InspectionTimeout(IN := FALSE);
+        ELSE
+            // Timeout: se o produto não chega em 5 s, gera alarme
+            TON_InspectionTimeout(IN := TRUE, PT := T#5s);
+            IF TON_InspectionTimeout.Q THEN
+                eState := ALARM;
+            END_IF;
+        END_IF;
+        
+        IF R_Stop.Q THEN
+            eState := STOPPED;
+        END_IF;
+    
+    //==========================================================
+    APPROVED:
+        // Produto aprovado: aciona saída principal
+        // Liga transportador da linha de aprovados
+        // (exemplo: oApprovedConveyor)
+        oApprovedConveyor := TRUE;
+        oPivotArm         := FALSE;  // Garante que desvio não está ativo
+        
+        // Aguarda a passagem confirmada pelo sensor óptico de fim de estado
+        // R_EndOfState.Q detecta borda de subida do sensor
+        IF R_EndOfState.Q THEN
+            // Produto passou pelo sensor, aguarda um pequeno tempo para sair completamente
+            TON_ApprovedExit(IN := TRUE, PT := T#500ms);
+        END_IF;
+        
+        IF TON_ApprovedExit.Q THEN
+            TON_ApprovedExit(IN := FALSE);
+            oApprovedConveyor := FALSE;
+            eState := WAITING_PARTS;   // Pronto para novo ciclo
+        END_IF;
+        
+        // Fallback: se o sensor óptico falhar, um timeout de segurança (ex. 4 s) pode forçar a saída
+        // (implementação opcional)
+        
+        IF R_Stop.Q THEN
+            eState := STOPPED;
+        END_IF;
+    
+    //==========================================================
+    REJECTED:
+        // Ativa braço desviador (Pivot Arm) para linha de rejeição
+        oPivotArm := TRUE;
+        oRejectedConveyor := TRUE;   // Esteira de rejeição
+        
+        // Aguarda sensor óptico confirmar passagem da peça rejeitada
+        IF R_EndOfState.Q THEN
+            TON_RejectedExit(IN := TRUE, PT := T#500ms);
+        END_IF;
+        
+        IF TON_RejectedExit.Q THEN
+            TON_RejectedExit(IN := FALSE);
+            oPivotArm := FALSE;
+            oRejectedConveyor := FALSE;
+            
+            // Verifica se número de rejeições consecutivas >= 3
+            IF ConsecutiveRejects >= 3 THEN
+                eState := ALARM;
+            ELSE
+                eState := WAITING_PARTS;
+            END_IF;
+        END_IF;
+        
+        IF R_Stop.Q THEN
+            eState := STOPPED;
+        END_IF;
+    
+    //==========================================================
+    ALARM:
+        // Estado de alarme por múltiplas rejeições consecutivas
+        // Desliga todos os atuadores e ativa sinalizadores de alarme
+        oBaseConveyor    := FALSE;
+        oLidConveyor     := FALSE;
+        oBaseClamp       := FALSE;
+        oLidClamp        := FALSE;
+        oGripperClose    := FALSE;
+        oRobotMovePick   := FALSE;
+        oRobotMovePlace  := FALSE;
+        oRobotMoveHome   := FALSE;
+        oPivotArm        := FALSE;
+        oApprovedConveyor := FALSE;
+        oRejectedConveyor := FALSE;
+        oGreenLight      := FALSE;
+        oYellowLight     := FALSE;
+        oRedLight        := TRUE;    // Indicador de falha
+        oAlarmLight      := TRUE;    // Sinalizador específico de alarme
+        
+        // Somente sai com RESET, que zera o contador e volta ao estado inicial
+        IF R_Reset.Q THEN
+            ConsecutiveRejects := 0;
+            eState := STOPPED;
+        END_IF;
+END_CASE;
