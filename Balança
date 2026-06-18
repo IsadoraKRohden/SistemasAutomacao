@@ -1,0 +1,123 @@
+(*Borda de Subida*)
+R_At_scale_entry(CLK := At_scale_entry);
+R_At_exit_left  (CLK :=   At_exit_left); 
+R_At_exit_front (CLK :=  At_exit_front); 
+R_At_exit_right (CLK :=  At_exit_right);
+
+(*Bordas de Descida*)
+F_At_left_entry   (CLK := At_left_entry); 
+F_At_forward_entry(CLK := At_forward_entry); 
+F_At_right_entry  (CLK := At_right_entry);
+
+CASE Passo OF
+	
+	0:
+		IF NOT Emergency_Mode AND Enable THEN
+			IF At_scale_entry THEN
+				Entry_conveyor := TRUE;
+			ELSE
+				Entry_conveyor := FALSE;
+				Passo          :=     1;
+			END_IF
+		END_IF
+		
+	1:
+		IF NOT Emergency_Mode AND Enable THEN
+			IF NOT At_scale AND Weight_sensor = 0 THEN
+				Entry_conveyor := TRUE;
+				Load_scale     := TRUE;
+				Passo          :=    2;
+			END_IF 
+		END_IF
+
+	2:
+		IF NOT Emergency_Mode AND Enable THEN
+			IF R_At_scale_entry.Q THEN
+				Entry_conveyor := FALSE;
+				Passo          :=     3;
+			END_IF
+		END_IF
+	
+	3:
+		IF NOT Emergency_Mode AND Enable THEN
+			IF At_scale THEN
+				Load_scale := FALSE;
+				Passo      := 4;
+			END_IF
+		END_IF
+		
+	4:
+		IF NOT Emergency_Mode AND Enable THEN
+			IF Timer.Q THEN
+				Send_forward := TRUE;
+				Load_scale   := TRUE;
+				Passo := 5;
+				IF Weight_sensor >= 7 AND Weight_sensor <= 8 THEN
+					Send_left := TRUE;
+				END_IF
+				IF Weight_sensor >= 14 AND Weight_sensor <= 15 THEN
+					Send_right := TRUE;
+				END_IF
+			END_IF		
+ 		END_IF
+		
+	5:
+		IF NOT Emergency_Mode AND Enable THEN
+			IF F_At_left_entry.Q THEN
+				Send_left := FALSE;
+			END_IF
+			IF F_At_right_entry.Q THEN
+				Send_right := FALSE;
+			END_IF
+			IF F_At_left_entry.Q OR F_At_forward_entry.Q OR F_At_right_entry.Q THEN
+				Send_forward := FALSE;
+				Load_scale := FALSE;
+				Passo := 0;
+				IF Stopping OR Manual THEN
+					Enable := FALSE;
+				END_IF
+			END_IF
+		END_IF
+END_CASE
+
+(*Temporizador*)
+Timer(IN:= Passo = 4, PT := T#1S);
+
+(*Esteiras de Saída*)
+	(*Esteira da Esquerda*)
+	Conveyor[1](CU := At_left_entry, CD := At_exit_left, RESET := Reset);
+IF NOT Emergency_Mode AND Enable THEN	
+	IF Conveyor[1].QD THEN
+		Left_conveyor := FALSE;
+	ELSE
+		Left_conveyor := TRUE;
+	END_IF
+END_IF
+	
+	(*Esteira Central*)
+	Conveyor[2](CU := At_forward_entry, CD := At_exit_front, RESET := Reset);
+IF NOT Emergency_Mode AND Enable THEN
+	IF Conveyor[2].QD THEN
+		Front_conveyor := FALSE;
+	ELSE
+		Front_conveyor := TRUE;
+	END_IF
+END_IF	
+	(*Esteira da Direita*)
+	Conveyor[3](CU := At_right_entry, CD := At_exit_right, RESET := Reset);
+IF NOT Emergency_Mode AND Enable THEN
+	IF Conveyor[3].QD THEN
+		Right_conveyor := FALSE;
+	ELSE
+		Right_conveyor := TRUE;
+	END_IF
+END_IF	
+(*Contadores*)
+Contador[1](CU :=  FIO_Running AND R_At_exit_left.Q, RESET := Reset, CV=>    Left_count);
+Contador[2](CU := FIO_Running AND R_At_exit_right.Q, RESET := Reset, CV=>   Right_Count);
+Contador[3](CU := FIO_Running AND R_At_exit_front.Q, RESET := Reset, CV=> Forward_count);
+
+(*Balança*)
+IF NOT Emergency_Mode AND Enable THEN
+	Weight := Weight_sensor;
+END_IF
