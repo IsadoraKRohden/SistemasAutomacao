@@ -1,0 +1,77 @@
+PROGRAM Manipulador							//mesmo assembler
+VAR
+    Moving_Z_F_TRIG, Moving_X_F_TRIG: F_TRIG;
+END_VAR
+
+(* Bordas de Descida *)
+Moving_Z_F_TRIG(CLK := GVL.Moving_Z);
+Moving_X_F_TRIG(CLK := GVL.Moving_X);
+CASE GVL.Step OF
+
+    0: // Aguardando abastecimento da tampa
+        IF GVL.Emergency_stop AND GVL.Enable AND GVL.Lid_clamped THEN
+            GVL.Step := 1;
+        END_IF
+
+    1: // Descer Manipulador (Z On / X Off)
+        IF GVL.Emergency_stop AND GVL.Enable THEN
+            GVL.Move_Z := TRUE;
+            IF Moving_Z_F_TRIG.Q THEN
+                GVL.Grab := TRUE;
+                GVL.Step := 2;
+            END_IF
+        END_IF
+
+    2: // Subir Manipulador (Z Off / X Off)
+        IF GVL.Emergency_stop AND GVL.Enable THEN
+            GVL.Tag[1] := TRUE;
+            GVL.Move_Z := FALSE;
+            GVL.Clamp_lid:= FALSE;
+            IF Moving_Z_F_TRIG.Q THEN
+                GVL.Step := 3;
+            END_IF
+        END_IF
+
+    3: // Avançar Manipulador (Z Off / X On)
+        IF GVL.Emergency_stop AND GVL.Enable THEN
+            GVL.Move_X := TRUE;
+            IF Moving_X_F_TRIG.Q THEN
+                GVL.Step := 4;
+            END_IF
+        END_IF
+
+    4: // Descer Manipulador (Z On / X On)
+        IF GVL.Emergency_stop AND GVL.Enable THEN
+            IF GVL.Base_clamped THEN
+                GVL.Move_Z := TRUE;
+            END_IF
+            IF Moving_Z_F_TRIG.Q THEN
+                GVL.Pos_raise_bases := TRUE;
+                GVL.Clamp_base := FALSE;
+                GVL.Grab := FALSE;
+                GVL.Step := 5;
+            END_IF
+        END_IF
+
+    5: // Subir Manipulador (Z Off / X On)
+        IF GVL.Emergency_stop AND GVL.Enable THEN
+            GVL.Bases_conveyor := TRUE;
+            GVL.Move_Z := FALSE;
+        END_IF
+        IF Moving_Z_F_TRIG.Q THEN
+            GVL.Step := 6;
+        END_IF
+
+    6: // Recuar Manipulador (Z Off / X off)
+        IF GVL.Emergency_stop AND GVL.Enable THEN
+            GVL.Move_X := FALSE;
+            IF Moving_X_F_TRIG.Q THEN
+                IF NOT GVL.Stopping THEN
+                    GVL.Step := 0;
+                END_IF
+                IF GVL.Manual OR GVL.Stopping THEN
+                    GVL.Enable := FALSE;
+                END_IF
+            END_IF
+        END_IF
+END_CASE
