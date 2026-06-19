@@ -1,0 +1,88 @@
+PROGRAM Inspecao_e_Classificacao
+VAR
+    TON_TimeOut : TON;
+    TON_Exit    : TON;
+    EndOfState_F_TRIG : F_TRIG;
+    WEIGHT_MIN : INT := 1400;			//Metal lid (7kg) + Base material (8kg) = 15 kg//
+    WEIGHT_MAX : INT := 1600;
+    MAX_CONSECUTIVE_REJECTS : INT := 3;
+END_VAR
+
+(* Detecção de borda do sensor óptico de fim de estado *)
+EndOfState_F_TRIG(CLK := GVL.EndOfState);
+
+(* Agrupamento das condições de inspeção *)
+GVL.ProductAtInspection := GVL.CapacitiveSensor;
+
+CASE GVL.InspectionStep OF
+
+    0:  // AGUARDAR_PRODUTO
+        GVL.PivotArm     := FALSE;				// Desliga todos os atuadores da inspeção
+        GVL.ApprovedConv := FALSE;
+        GVL.RejectedConv := FALSE;
+        GVL.AlarmLight   := FALSE;
+
+        TON_TimeOut(IN := FALSE);
+        IF GVL.Emergency_stop AND GVL.Enable THEN
+            GVL.InspectionStep := 10;
+        END_IF;
+
+    10: // ESPERAR_CHEGADA
+        IF GVL.ProductAtInspection THEN
+            IF GVL.InductiveSensor AND 
+               (GVL.WeightValue >= WEIGHT_MIN) AND 
+               (GVL.WeightValue <= WEIGHT_MAX) THEN
+                GVL.InspectionStep := 20; 				// Aprovado
+                GVL.ConsecutiveRejects := 0;  			// reseta contagem de falhas
+            ELSE
+                GVL.InspectionStep := 30; 				// Rejeitado
+                GVL.ConsecutiveRejects := GVL.ConsecutiveRejects + 1;
+            END_IF;
+        ELSE
+            TON_TimeOut(IN := TRUE, PT := T#5s);		// Timeout de 5 segundos para o produto aparecer
+            IF TON_TimeOut.Q THEN
+                GVL.InspectionStep := 40; // Alarme por timeout
+            END_IF;
+        END_IF;
+
+    20: // APROVADO
+        GVL.ApprovedConv := TRUE;
+        GVL.PivotArm := FALSE;
+        IF EndOfState_F_TRIG.Q THEN
+            TON_Exit(IN := TRUE, PT := T#500ms);
+        END_IF;
+        IF TON_Exit.Q THEN
+            TON_Exit(IN := FALSE);
+            GVL.ApprovedConv := FALSE;
+            GVL.InspectionStep := 0;
+        END_IF;
+
+    30: // REJEITADO (Aciona pivot arm e esteira)
+        GVL.PivotArm := TRUE;
+        GVL.RejectedConv := TRUE;
+        
+        IF EndOfState_F_TRIG.Q THEN
+            TON_Exit(IN := TRUE, PT := T#500ms);
+        END_IF;
+        IF TON_Exit.Q THEN
+            TON_Exit(IN := FALSE);
+            GVL.PivotArm := FALSE;
+            GVL.RejectedConv := FALSE;
+            IF GVL.ConsecutiveRejects >= MAX_CONSECUTIVE_REJECTS THEN		// Verifica se excedeu o limite de rejeições consecutivas
+                GVL.InspectionStep := 40;
+            ELSE
+                GVL.InspectionStep := 0;
+            END_IF;
+        END_IF;
+    
+    40: // ALARME
+        GVL.AlarmLight := TRUE;
+        GVL.PivotArm := FALSE;
+        GVL.ApprovedConv := FALSE;
+        GVL.RejectedConv := FALSE;
+        IF GVL.Reset THEN
+            GVL.ConsecutiveRejects := 0;
+            GVL.AlarmLight := FALSE;
+            GVL.InspectionStep := 0;
+        END_IF;
+END_CASE
