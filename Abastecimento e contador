@@ -1,0 +1,41 @@
+PROGRAM Abastecimento_e_Contador
+VAR
+    Base_at_place_F_TRIG, Lid_at_place_F_TRIG, Part_leaving_F_TRIG : F_TRIG;
+END_VAR
+
+(* Bordas de Descida *)
+Lid_at_place_F_TRIG(CLK := GVL.Lid_at_place);
+Base_at_place_F_TRIG(CLK := GVL.Base_at_place);
+Part_leaving_F_TRIG(CLK := GVL.Part_leaving);
+
+(* Contador de produtos que deixam a montagem *)
+GVL.ApprovedCounter(CU := Part_leaving_F_TRIG.Q, Reset := GVL.Reset OR NOT GVL.Emergency_stop);
+GVL.Counter := GVL.ApprovedCounter.CV;
+
+(* Abastecimento de Tampas *)
+IF GVL.Emergency_stop AND GVL.Enable AND GVL.Tag[1] AND NOT GVL.Clamp_lid THEN
+    GVL.Lids_conveyor := TRUE;
+END_IF
+IF GVL.Emergency_stop AND Lid_at_place_F_TRIG.Q THEN
+    GVL.Clamp_lid     := TRUE;
+    GVL.Lids_conveyor := FALSE;
+    GVL.Tag[1]        := FALSE;
+END_IF
+
+(* Abastecimento de Bases *)
+IF GVL.Emergency_stop AND GVL.Enable AND GVL.Tag[2] AND NOT GVL.Clamp_base THEN
+    GVL.Bases_conveyor := TRUE;
+    GVL.Bases_emitter  := TRUE;
+END_IF
+IF GVL.Emergency_stop AND Base_at_place_F_TRIG.Q THEN
+    GVL.Clamp_base     := TRUE;
+    GVL.Bases_conveyor := FALSE;
+    GVL.Bases_emitter  := FALSE;
+    GVL.Tag[2]         := FALSE;
+END_IF
+IF GVL.Emergency_stop AND Part_leaving_F_TRIG.Q THEN
+    GVL.Tag[2] := TRUE;
+    GVL.Bases_conveyor := FALSE;
+    GVL.Pos_raise_bases := FALSE;                // Sinaliza novo produto foi enviado para inspeção
+    GVL.ProductAtInspection := FALSE;
+END_IF
