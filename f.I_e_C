@@ -1,0 +1,79 @@
+PROGRAM Inspecao_e_Classificacao
+VAR
+    WeightTimer : TON;
+END_VAR
+	//WEIGHT_MIN : REAL := 14.0;
+	//WEIGHT_MAX : REAL := 16.0;			//Metal lid (7kg) + Base material (8kg) = 15 kg//
+
+  //////////////////////////////////////
+
+CASE GVL.InspectionStep OF
+
+0:    //ESPERA PRODUTO
+    GVL.PivotArm := FALSE;
+    GVL.InspectionConveyor := TRUE;
+    IF GVL.InspectionSensor THEN
+        GVL.InspectionConveyor := FALSE;
+        GVL.InspectionStep := 10;
+    END_IF;
+
+10:    //ESTABILIZA PESO
+    WeightTimer(
+        IN := TRUE,
+        PT := T#500ms
+    );
+    IF WeightTimer.Q THEN
+        WeightTimer(IN := FALSE);
+        GVL.InspectionStep := 20;
+    END_IF;
+
+20:    //DECISÃO
+    IF GVL.InductiveSensor
+    AND (GVL.WeightValue >= 1400)
+    AND (GVL.WeightValue <= 1600)
+    THEN
+        GVL.InspectionStep := 30;
+    ELSE
+        GVL.InspectionStep := 40;
+    END_IF;
+
+30:    //APROVADO
+    GVL.PivotArm := FALSE;
+    GVL.InspectionConveyor := TRUE;
+    GVL.InspectionStep := 50;
+
+40:    //REJEITADO
+    GVL.PivotArm := TRUE;
+    GVL.InspectionConveyor := TRUE;
+    GVL.InspectionStep := 60;
+
+50:    //CONFIRMA APROVAÇÃO
+    IF GVL.ApprovedSensor THEN
+        GVL.ApprovedParts :=
+            GVL.ApprovedParts + 1;
+        GVL.ConsecutiveRejects := 0;
+        GVL.InspectionStep := 0;
+    END_IF;
+
+60:    //CONFIRMA REJEIÇÃO
+    IF GVL.RejectedSensor THEN
+        GVL.RejectedParts :=
+            GVL.RejectedParts + 1;
+        GVL.ConsecutiveRejects :=
+            GVL.ConsecutiveRejects + 1;
+        IF GVL.ConsecutiveRejects >= 3 THEN
+            GVL.QualityFault := TRUE;
+            GVL.InspectionStep := 70;
+        ELSE
+            GVL.InspectionStep := 0;
+        END_IF;
+    END_IF;
+
+70: //FALHA DE QUALIDADE
+    GVL.InspectionConveyor := FALSE;
+    IF GVL.Reset THEN
+        GVL.QualityFault := FALSE;
+        GVL.ConsecutiveRejects := 0;
+        GVL.InspectionStep := 0;
+    END_IF;
+END_CASE;
