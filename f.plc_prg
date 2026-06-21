@@ -1,0 +1,42 @@
+(* CONTROLE GERAL*)
+IF NOT GVL.Emergency_Stop THEN
+    GVL.Enable := FALSE;
+    GVL.Step := 0;
+    GVL.InspectionStep := 0;
+END_IF;
+
+(* START *)
+IF GVL.Start THEN
+    GVL.Enable := TRUE;
+    GVL.Stopping := FALSE;
+    GVL.Tag[1] := TRUE;
+    GVL.Tag[2] := TRUE;
+END_IF;
+
+(* STOP *)
+IF NOT GVL.Stop THEN
+    GVL.Stopping := TRUE;
+END_IF;
+
+IF GVL.Stopping
+AND GVL.Step = 0 THEN
+    GVL.Enable := FALSE;
+END_IF;
+
+GVL.Start_Light := GVL.Enable;
+GVL.Stop_Light := NOT GVL.Enable;
+GVL.Reset_Light := GVL.Reset;
+
+(*STACK LIGHT*)
+GVL.StackGreen :=
+    GVL.Enable
+    AND NOT GVL.Stopping
+    AND NOT GVL.QualityFault;
+
+GVL.StackYellow :=
+    GVL.Stopping
+    AND NOT GVL.QualityFault;
+
+GVL.StackRed :=
+    GVL.QualityFault
+    OR NOT GVL.Emergency_Stop;
