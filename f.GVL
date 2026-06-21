@@ -1,0 +1,67 @@
+VAR_GLOBAL
+    Enable : BOOL;
+    Stopping : BOOL;
+    Step : INT := 0;
+    InspectionStep : INT := 0;
+    Clock : Blink;
+    Tag : ARRAY[1..2] OF BOOL;
+    QualityFault : BOOL := FALSE;
+
+(* ENTRADAS DIGITAIS*)
+
+    Moving_X : BOOL;
+    Moving_Z : BOOL;
+    Item_detected : BOOL;
+
+    Lid_at_place : BOOL;
+    Lid_clamped : BOOL;
+    Base_at_place : BOOL;
+    Base_clamped : BOOL;
+    Pos_at_limit_lids : BOOL;
+    Pos_at_limit_bases : BOOL;
+    Part_leaving : BOOL;
+
+    Start : BOOL;
+    Stop : BOOL;
+    Reset : BOOL;
+    Emergency_stop : BOOL;
+    Auto : BOOL;
+    Manual : BOOL;
+
+    FIO_Running : BOOL;
+
+    InspectionSensor : BOOL;
+    InductiveSensor : BOOL;
+    ApprovedSensor : BOOL;
+    RejectedSensor : BOOL;
+
+    WeightValue : WORD;
+
+(* SAÍDAS DIGITAIS*)
+
+    Move_X : BOOL;
+    Move_Z : BOOL;
+    Grab : BOOL;
+
+    Lids_conveyor : BOOL;
+    Bases_conveyor : BOOL;
+    Clamp_lid : BOOL;
+    Clamp_base : BOOL;
+    Pos_raise_lids : BOOL;
+    Pos_raise_bases : BOOL;
+    Bases_emitter : BOOL;
+
+    InspectionConveyor : BOOL;
+    PivotArm : BOOL;
+
+    Start_Light : BOOL;
+    Stop_Light : BOOL;
+    Reset_Light : BOOL;
+    StackGreen : BOOL;
+    StackYellow : BOOL;
+    StackRed : BOOL;
+
+    ApprovedParts : INT := 0;
+    RejectedParts : INT := 0;
+    ConsecutiveRejects : INT := 0;
+END_VAR
