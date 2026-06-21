@@ -1,0 +1,42 @@
+PROGRAM Abastecimento_e_Contador
+VAR
+    Base_at_place_R : R_TRIG;
+    Lid_at_place_R : R_TRIG;
+    Part_leaving_R : R_TRIG;
+END_VAR
+
+////////////////////////////////////////////////
+
+Base_at_place_R(CLK := GVL.Base_at_place);
+Lid_at_place_R(CLK := GVL.Lid_at_place);
+Part_leaving_R(CLK := GVL.Part_leaving);
+
+IF GVL.Enable
+AND GVL.Tag[1]
+AND NOT GVL.Clamp_lid THEN                //abastecimento tampas
+    GVL.Lids_conveyor := TRUE;
+END_IF;
+
+IF Lid_at_place_R.Q THEN
+    GVL.Lids_conveyor := FALSE;
+    GVL.Clamp_lid := TRUE;
+    GVL.Tag[1] := FALSE;
+END_IF;
+
+IF GVL.Enable
+AND GVL.Tag[2]
+AND NOT GVL.Clamp_base THEN                        //abastecimento bases
+    GVL.Bases_conveyor := TRUE;
+    GVL.Bases_emitter := TRUE;
+END_IF;
+
+IF Base_at_place_R.Q THEN
+    GVL.Bases_conveyor := FALSE;
+    GVL.Bases_emitter := FALSE;
+    GVL.Clamp_base := TRUE;
+    GVL.Tag[2] := FALSE;
+END_IF;
+
+IF Part_leaving_R.Q THEN
+    GVL.Tag[2] := TRUE;                        //peça produzida
+END_IF;
