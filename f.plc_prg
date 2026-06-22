@@ -1,42 +1,60 @@
-(* CONTROLE GERAL*)
-IF NOT GVL.Emergency_Stop THEN
-    GVL.Enable := FALSE;
-    GVL.Step := 0;
-    GVL.InspectionStep := 0;
+IF NOT FIO.Emergency_Stop THEN
+    RETURN;
 END_IF;
 
-(* START *)
-IF GVL.Start THEN
-    GVL.Enable := TRUE;
-    GVL.Stopping := FALSE;
-    GVL.Tag[1] := TRUE;
-    GVL.Tag[2] := TRUE;
-END_IF;
-
-(* STOP *)
-IF NOT GVL.Stop THEN
-    GVL.Stopping := TRUE;
-END_IF;
-
-IF GVL.Stopping
-AND GVL.Step = 0 THEN
-    GVL.Enable := FALSE;
-END_IF;
-
-GVL.Start_Light := GVL.Enable;
-GVL.Stop_Light := NOT GVL.Enable;
-GVL.Reset_Light := GVL.Reset;
+(*Start/Stop/Reset*)
+IF FIO.Emergency_Stop THEN
+	//Start
+	IF FIO.Start THEN
+		FIO.Enable := TRUE;
+		FIO.Stopping := FALSE;
+		FIO.Assembler_step := 0;
+		FIO.Tag[1] := TRUE;
+		FIO.Tag[2] := TRUE;
+		
+	END_IF
+	//Stop
+	IF NOT FIO.Stop THEN
+		FIO.Stopping := TRUE;
+	END_IF
+	//Reset
+	IF FIO.Reset THEN
+		FIO.Reset_Light := TRUE;
+		FIO.Enable := FALSE;
+		FIO.Stopping := TRUE;
+		FIO.Tag[1] := FALSE;
+		FIO.Tag[2] := FALSE;
+	ELSE
+		FIO.Reset_Light := FALSE;
+	END_IF
+	//Enable
+	IF FIO.Enable THEN
+		FIO.Stop_Light := FALSE;
+		FIO.Start_Light := TRUE;
+	ELSE
+		FIO.Start_Light := FALSE;
+		FIO.Stop_Light  := TRUE;
+	END_IF
+END_IF
+// Pisca-Pisca do Led Vermelho para indicar que a máquina vai parar.
+FIO.Clock();
+IF FIO.Emergency_Stop AND FIO.Enable AND FIO.Stopping THEN
+	FIO.Clock.ENABLE := TRUE;
+	FIO.Stop_Light := FIO.Clock.OUT;
+ELSIF NOT FIO.Stopping THEN
+	FIO.Clock.ENABLE := FALSE;
+END_IF
 
 (*STACK LIGHT*)
-GVL.StackGreen :=
-    GVL.Enable
-    AND NOT GVL.Stopping
-    AND NOT GVL.QualityFault;
+FIO.Green_stack :=
+    FIO.Enable
+    AND NOT FIO.Stopping
+    AND NOT FIO.Quality_fault;
 
-GVL.StackYellow :=
-    GVL.Stopping
-    AND NOT GVL.QualityFault;
+FIO.Yellow_stack :=
+    FIO.Stopping
+    AND NOT FIO.Quality_fault;
 
-GVL.StackRed :=
-    GVL.QualityFault
-    OR NOT GVL.Emergency_Stop;
+FIO.Red_stack :=
+    FIO.Quality_fault
+    OR NOT FIO.Emergency_Stop;
