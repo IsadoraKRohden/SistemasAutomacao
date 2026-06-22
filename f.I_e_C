@@ -1,79 +1,86 @@
 PROGRAM Inspecao_e_Classificacao
 VAR
-    WeightTimer : TON;
+    Weight_timer : TON; 
 END_VAR
-	//WEIGHT_MIN : REAL := 14.0;
-	//WEIGHT_MAX : REAL := 16.0;			//Metal lid (7kg) + Base material (8kg) = 15 kg//
+//Metal lid (7kg) + Base material (8kg) = 15 kg
+//LEITURA BOTÃO APROVADO = 7.0;
 
   //////////////////////////////////////
 
-CASE GVL.InspectionStep OF
+CASE FIO.Inspection_step OF
 
 0:    //ESPERA PRODUTO
-    GVL.PivotArm := FALSE;
-    GVL.InspectionConveyor := TRUE;
-    IF GVL.InspectionSensor THEN
-        GVL.InspectionConveyor := FALSE;
-        GVL.InspectionStep := 10;
+    FIO.Pivot_arm := FALSE;
+    FIO.Inspection_conveyor := TRUE;
+    IF FIO.Inspection_sensor THEN
+        FIO.Inspection_conveyor := FALSE;
+        FIO.Inspection_step := 1;
     END_IF;
 
-10:    //ESTABILIZA PESO
-    WeightTimer(
+1:    //ESTABILIZA PESO
+    Weight_timer(
         IN := TRUE,
         PT := T#500ms
     );
-    IF WeightTimer.Q THEN
-        WeightTimer(IN := FALSE);
-        GVL.InspectionStep := 20;
+    IF Weight_timer.Q THEN				//pra nao dar erro na leitura da balança pq a peça esta entrando
+        Weight_timer(IN := FALSE);
+        FIO.Inspection_step := 2;
     END_IF;
 
-20:    //DECISÃO
-    IF GVL.InductiveSensor
-    AND (GVL.WeightValue >= 1400)
-    AND (GVL.WeightValue <= 1600)
+2:    //DECISÃO
+    IF FIO.Inductive_sensor
+    AND (FIO.Weight_sensor >= 6.5)
+    AND (FIO.Weight_sensor <= 7.5)			//coloquei tolerancia de 0.5
     THEN
-        GVL.InspectionStep := 30;
+        FIO.Inspection_step := 3;
     ELSE
-        GVL.InspectionStep := 40;
+        FIO.Inspection_step := 4;
     END_IF;
 
-30:    //APROVADO
-    GVL.PivotArm := FALSE;
-    GVL.InspectionConveyor := TRUE;
-    GVL.InspectionStep := 50;
+3:    //APROVADO
+    FIO.Inspection_conveyor := TRUE;
+	FIO.Decision_conveyor := TRUE;
+    FIO.Inspection_step := 5;
 
-40:    //REJEITADO
-    GVL.PivotArm := TRUE;
-    GVL.InspectionConveyor := TRUE;
-    GVL.InspectionStep := 60;
+4:    //REJEITADO
+    FIO.Pivot_arm := TRUE;
+    FIO.Inspection_conveyor := TRUE;
+	FIO.Decision_conveyor := TRUE;
+    FIO.Inspection_step := 6;
 
-50:    //CONFIRMA APROVAÇÃO
-    IF GVL.ApprovedSensor THEN
-        GVL.ApprovedParts :=
-            GVL.ApprovedParts + 1;
-        GVL.ConsecutiveRejects := 0;
-        GVL.InspectionStep := 0;
-    END_IF;
+5:    //CONFIRMA APROVAÇÃO
+    IF FIO.Approved_sensor THEN
+        FIO.Approved_parts := FIO.Approved_parts + 1;		//CONTADOR APROVADAS, visor no painel de controle
+		FIO.Consecutive_rejects := 0;
+        FIO.Inspection_step := 0;
+    END_IF
 
-60:    //CONFIRMA REJEIÇÃO
-    IF GVL.RejectedSensor THEN
-        GVL.RejectedParts :=
-            GVL.RejectedParts + 1;
-        GVL.ConsecutiveRejects :=
-            GVL.ConsecutiveRejects + 1;
-        IF GVL.ConsecutiveRejects >= 3 THEN
-            GVL.QualityFault := TRUE;
-            GVL.InspectionStep := 70;
+6:    //CONFIRMA REJEIÇÃO
+	IF FIO.Approved_sensor THEN				//SENSOR APROVADO DISPAROU MESMO COM A PEÇA SENDO REJEITADA
+    	FIO.Decision_conveyor := FALSE;
+    	FIO.Stopping := TRUE;
+    	FIO.Quality_fault := TRUE;
+    	FIO.Inspection_step := 7;
+	END_IF;
+
+    IF FIO.Rejected_sensor THEN			//TRES REJEITADOS CONSECUTIVAMENTE, PROGRAMA PARA
+        FIO.Rejected_parts :=
+            FIO.Rejected_parts + 1;
+        FIO.Consecutive_rejects :=
+            FIO.Consecutive_rejects + 1;
+        IF FIO.Consecutive_rejects >= 3 THEN
+            FIO.Quality_fault := TRUE;
+            FIO.Inspection_step := 7;
         ELSE
-            GVL.InspectionStep := 0;
+            FIO.Inspection_step := 0;
         END_IF;
     END_IF;
 
-70: //FALHA DE QUALIDADE
-    GVL.InspectionConveyor := FALSE;
-    IF GVL.Reset THEN
-        GVL.QualityFault := FALSE;
-        GVL.ConsecutiveRejects := 0;
-        GVL.InspectionStep := 0;
+7: //FALHA DE QUALIDADE
+    FIO.Inspection_conveyor := FALSE;
+    IF FIO.Reset THEN
+        FIO.Quality_Fault := FALSE;
+        FIO.Consecutive_Rejects := 0;
+        FIO.Inspection_step := 0;
     END_IF;
 END_CASE;
