@@ -1,0 +1,44 @@
+PROGRAM Abastecimento_e_Contador
+VAR
+	Base_at_place_F_TRIG, 
+	Lid_at_place_F_TRIG, 
+	Part_leaving_F_TRIG : F_TRIG;
+END_VAR
+
+
+(* Bordas de Descida *)
+Lid_at_place_F_TRIG(CLK := FIO.Lid_at_place);
+Base_at_place_F_TRIG(CLK := FIO.Base_at_place);
+Part_leaving_F_TRIG(CLK := FIO.Part_leaving);
+
+(*Abastecimento de Tampas*)
+IF FIO.Emergency_stop AND FIO.Enable AND FIO.Tag[1] AND NOT FIO.Clamp_lid THEN
+	FIO.Lids_conveyor := TRUE;
+END_IF
+
+IF FIO.Emergency_stop AND Lid_at_place_F_TRIG.Q THEN
+	FIO.Clamp_lid     := TRUE;
+	FIO.Lids_conveyor := FALSE;
+	FIO.Tag[1]        := FALSE;
+END_IF
+
+(*Abastecimento de Bases*)
+IF FIO.Emergency_stop AND FIO.Enable AND FIO.Tag[2] AND NOT FIO.Clamp_base THEN
+	FIO.Bases_conveyor := TRUE;
+	FIO.Bases_emitter := TRUE;
+	FIO.Lids_emitter := TRUE;
+END_IF
+
+IF FIO.Emergency_stop AND Base_at_place_F_TRIG.Q  THEN			//começa o manipulador, para esteiras
+	FIO.Clamp_base     	:= TRUE;
+	FIO.Bases_conveyor 	:= FALSE;
+	FIO.Bases_emitter  	:= FALSE;
+	FIO.Lids_emitter	:= FALSE;
+	FIO.Tag[2]         	:= FALSE;
+END_IF
+
+IF FIO.Emergency_stop AND Part_leaving_F_TRIG.Q THEN		//libera a peça pronta
+	FIO.Tag[2] := TRUE;
+	FIO.Bases_conveyor := FALSE;
+	FIO.Pos_raise_bases := FALSE;
+END_IF
