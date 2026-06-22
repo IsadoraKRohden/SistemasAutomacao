@@ -1,0 +1,38 @@
+IF NOT FIO.Emergency_Stop THEN
+
+    (* Desabilita operação *)
+    FIO.Enable := FALSE;
+    FIO.Stopping := FALSE;
+    FIO.Assembler_step := 0;
+    FIO.Inspection_step := 0;
+
+    (* Manipulador *)
+    FIO.Move_X := FALSE;
+    FIO.Move_Z := FALSE;
+    FIO.Grab := FALSE;
+
+    (* Transporte *)
+    FIO.Lids_conveyor := FALSE;
+    FIO.Bases_conveyor := FALSE;
+    FIO.Inspection_conveyor := FALSE;
+
+    FIO.Bases_emitter := FALSE;
+    FIO.Clamp_lid := FALSE;
+    FIO.Clamp_base := FALSE;
+
+    FIO.Pos_raise_lids := FALSE;
+    FIO.Pos_raise_bases := FALSE;
+
+    (* Sistema de rejeição *)
+    FIO.Pivot_arm := FALSE;
+
+    (* Sinalização *)
+    FIO.Start_Light := FALSE;
+    FIO.Stop_Light := FALSE;
+    FIO.Reset_Light := FALSE;
+
+    (* Stack Light *)
+    FIO.Green_stack := FALSE;
+    FIO.Yellow_stack := FALSE;
+    FIO.Red_stack := TRUE;
+END_IF;
